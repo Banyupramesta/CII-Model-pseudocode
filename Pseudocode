@@ -1,0 +1,206 @@
+Stage 1: Data Initialization and Preprocessing
+
+// Parameters and Variables
+Define DEPOTS (i ∈ I), SUPPLY_POINTS (s ∈ S), FLEETS (k ∈ K)
+Define Variables:
+    - CIIk : Carbon Intensity Indicator for each fleet k
+    - DWTk : Deadweight Tonnage of each fleet k
+    - FCsik : Fuel Consumption from supply to depot
+    - FCisk : Fuel Consumption from depot to supply
+    - RFCsik : Rate of Fuel Consumption (supply to depot)
+    - RFCisk : Rate of Fuel Consumption (depot to supply)
+    - Vk : Velocity of fleet k
+    - Xsi : Distance from each supply point (s) to depot (i)
+    - Ysi : Frequency of trips from supply to depot
+    - CRBk, CRNk : Fleet rate coefficients
+    - MLNGsik : LNG load transported from supply to depot
+    - WCi : Warehouse capacity at depot i
+    - DTi : Annual demand for each depot i
+    - TLTk : Total loading/unloading time for each fleet k
+    - TIk : Idle time for each fleet k
+    - CFk : Fuel cost per fleet k
+    - Tp : Draft depth of each depot p
+    - Bk : Draft depth of each fleet k
+    - CLk, CIk : Fuel rates for loading/unloading and idle times
+// Load Input Data
+Load Distance_Matrix, Demand, and Warehouse_Capacity for each depot
+Set MARPOL_ANNEX_VI_LIMITS (CII category boundaries and reduction targets)
+// Objective Function
+Objective_Function = Minimize Σk (CIIk * DWTk) / Σk DWTk
+
+Stage 2: Optimization of Fleet Distribution Model
+// Objective Function to Minimize CII
+Objective_Function = Minimize Σk (CIIk * DWTk) / Σk DWTk
+Where:
+CIIk = [(Σs Σi (FCsik + FCisk + FCLk + FCIk) * CFk)] / (DWTk * Σs Σi (Xsi + Ysi))
+// Constraints Based on Model Equations
+// 1. Fuel Consumption Calculation for each route (supply -> depot) and (depot -> supply)
+FOR each route from supply (s) to depot (i) using fleet (k)
+    Calculate FCsik = (RFCsik * Xsi * Ysi) / Vk           
+    Calculate FCisk = (RFCisk * Xis * Ysi) / Vk           
+    Total_Fuel_Consumption = FCsik + FCisk
+END FOR
+// 2. Rate of Fuel Consumption (RFC) for Each Fleet on Each Route
+FOR each fleet k on route s -> i
+    Calculate RFCsik = CRBk + CRNk * Lsik  
+    Calculate RFCisk = CRBk              
+END FOR
+// 3. Warehouse Capacity Constraints
+FOR each depot i and fleet k
+    Ensure WCi >= MLNGsik                         
+END FOR
+// 4. Fleet Capacity Constraints
+FOR each fleet k
+    Ensure Qk >= MLNGsik                         
+END FOR
+// 5. Annual Demand Fulfillment for Each Depot
+FOR each depot i
+    Ensure Σs Σk MLNGsik * Ysi >= DTi             
+END FOR
+// 6. Load Percentage Calculation for Supply and Depot Routes
+FOR each route (supply -> depot) using fleet (k)
+    Calculate Lsik = MLNGsik / Qk                
+    Ensure Lsik = 0 if route is invalid (i.e., i = j or fleet capacity is insufficient)
+END FOR
+// 7. Loading and Unloading Constraints
+FOR each fleet k
+    Calculate TLTk = Σs Σi (TLsik + TLisk) * Ysi    
+    Calculate FCLk = TLTk * CLk               
+END FOR
+// 8. Operational Time Constraints
+FOR each fleet k
+    Ensure HZk >= Σs Σi [(Xsi * Ysi / Vk) + (Xis * Ysi / Vk)] + TLTk
+    END FOR
+// 9. Idle Time Fuel Consumption for Each Fleet
+FOR each fleet k
+    Calculate Idle_Fuel_Consumption = TIk * CIk          
+END FOR
+// 10. Frequency Constraints for Trips
+FOR each fleet k
+    Ensure Σs Σi Ysi = Σs Σi Yis                        
+END FOR
+// 11. Berthing Constraints Based on Depot Depth and Fleet Draft
+FOR each depot p and fleet k
+    Ensure Tp >= Bk                                      
+END FOR
+// 12. Minimize LNG Load Per Trip (Capacity Optimization)
+FOR each fleet k and depot i
+    Ensure MLNGsik <= Qk                                 
+END FOR
+
+Stage 3: CII Calculation and Ranking
+// Step 1: Calculate Initial CII Value for Each Fleet Based on Operational Data
+FOR each fleet k
+    // Calculate fuel consumption during operation, including supply-to-depot, depot-to-supply, loading/unloading, and idle time
+    CIIk = [(Σs Σi (FCsik + FCisk + FCLk + FCIk) * CFk)] / (DWTk * Σs Σi (Xsi + Ysi))
+END FOR
+// Step 2: Calculate Reference CII Value for Each Fleet Type Based on IMO Standards
+FOR each fleet type (e.g., bulk carrier, tanker, container ship, etc.)
+    // Use fleet type, Deadweight Tonnage (DWT), and operational characteristics to set the reference CII value
+    Set Reference_CII = IMO_Standard_CII_Value (DWT, fleet type, operational parameters)
+END FOR
+// Step 3: Compare Each Fleet's Calculated CII Against Reference CII to Assign Initial Rating
+FOR each fleet k
+    // Calculate rating by comparing calculated CII to reference CII using MARPOL Annex VI rating thresholds
+    IF CIIk < Reference_CII * Superior_Boundary THEN
+        Assign RANK = A
+    ELSE IF CIIk < Reference_CII * Lower_Boundary THEN
+        Assign RANK = B
+    ELSE IF CIIk < Reference_CII * Upper_Boundary THEN
+        Assign RANK = C
+    ELSE IF CIIk < Reference_CII * Inferior_Boundary THEN
+        Assign RANK = D
+    ELSE
+        Assign RANK = E
+    END IF
+END FOR
+// Step 4: Identify Non-Compliant Fleets Based on CII Ratings
+FOR each fleet k
+    // Mark fleet as non-compliant if it has:
+    // - Rank D for 3 consecutive years, or
+    // - Rank E for any single year
+    IF RANK = D for 3 consecutive years OR RANK = E THEN
+        Mark Fleet k as Non-Compliant
+        Document Non-Compliance Issue and Proceed to Develop an Action Plan
+    END IF
+END FOR
+// Step 5: Adjust Operational Parameters for Non-Compliant Fleets
+FOR each Non-Compliant Fleet
+    // Adjust parameters to improve CII rating to at least C
+    Adjust Operational_Time to optimize fuel usage
+    Increase Fuel_Efficiency through route optimization or improved fleet maintenance
+    Evaluate alternative fuel sources or energy-saving measures
+    Document each adjustment made and its purpose
+END FOR
+// Step 6: Recalculate CII for Adjusted Fleets
+FOR each adjusted fleet k
+    // Recalculate CII with adjusted parameters
+    Recalculate CIIk = [(Σs Σi (Adjusted_FCsik + Adjusted_FCisk + Adjusted_FCLk + Adjusted_FCIk) * CFk)] / (DWTk * Σs Σi (Xsi + Ysi))
+    // Re-determine rating after adjustments
+    IF CIIk < Reference_CII * Superior_Boundary THEN
+        Assign RANK = A
+    ELSE IF CIIk < Reference_CII * Lower_Boundary THEN
+        Assign RANK = B
+    ELSE IF CIIk < Reference_CII * Upper_Boundary THEN
+        Assign RANK = C
+    ELSE IF CIIk < Reference_CII * Inferior_Boundary THEN
+        Assign RANK = D
+    ELSE
+        Assign RANK = E
+    END IF
+END FOR
+// Step 7: Develop Action Plan for Fleets That Remain Non-Compliant After Adjustments
+FOR each fleet k with final RANK = D or E
+    // Create an action plan to reach a minimum compliance level of C
+    Action_Plan = [
+        "Implement advanced energy-saving technologies",
+        "Enhance route planning and scheduling",
+        "Perform regular maintenance checks",
+        "Explore options for fuel type changes or alternative energy sources"
+    ]
+    Assign target completion dates and responsible teams for each action
+    Document Action_Plan with specific targets, dates, and metrics for performance improvement
+END FOR
+// Step 8: Generate Compliance Report for All Fleets
+Generate Compliance_Report including:
+    - Fleet ID, Initial and Final CII Values, Assigned Ratings, Adjustments Made
+    - Non-Compliant Fleets with Action Plans and Target Ratings
+    - Compliance Summary: Percentage of fleets within compliance (Ratings A-C)
+    // Include specific recommendations for further improvements in energy efficiency, fuel management, or operational strategies
+    Recommendations = [
+        "Evaluate fleet renewal options for older, less efficient fleets",
+        "Implement real-time monitoring for fuel usage and emissions",
+        "Increase crew training on fuel-saving operations"
+    ]
+END Compliance_Report
+// Step 9: Record All CII Values, Adjustments, and Compliance Actions for Long-Term Monitoring
+FOR each fleet k
+    Store in Database: Fleet ID, Annual CII Values, Adjustments, Rating History
+    Update Fleet Compliance Trends over multiple years to monitor improvements and flag recurring issues
+END FOR
+// Step 10: Annual Review of Compliance and Performance Metrics
+FOR each year
+    Review Fleet Compliance Trends to identify successful interventions and areas for continued improvement
+    Generate Fleet Performance Summary with insights on fleet performance against MARPOL Annex VI standards
+END FOR
+
+Stage 4: Simulation of Various Operational Schemes
+// Define Operational Schemes with Different Configurations
+FOR each SCHEME (varying supply points and maintenance schedules)
+    Configure supply points, maintenance schedule, and fleet assignments based on SCHEME
+    // Run Model for Each Scheme
+    FOR each fleet in SCHEME
+        Calculate CII for fleet
+        Rank fleet based on CII values and compliance with MARPOL standards
+    END FOR
+    // Store Results for Each Scheme
+    Save Scheme_Result (CII values, Ranks, Compliance)
+END FOR
+// Select Optimal Scheme
+Optimal_Scheme = Scheme with Highest Environmental Compliance and Lowest CII Value
+
+Stage 5: Reporting and Compliance
+// Generate Compliance Report
+Generate Report with Fleet Rankings, CII Values, Recommended Adjustments for Non-Compliant Fleets
+// Output Final Recommendations
+Print Operational Recommendations, Supply Point Configurations, and Suggested Maintenance for Optimal CII
