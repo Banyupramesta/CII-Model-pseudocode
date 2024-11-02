@@ -1,5 +1,4 @@
 Stage 1: Data Initialization and Preprocessing
-
 // Parameters and Variables
 Define DEPOTS (i ∈ I), SUPPLY_POINTS (s ∈ S), FLEETS (k ∈ K)
 Define Variables:
